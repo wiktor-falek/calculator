@@ -25,17 +25,15 @@ Implemented in [Gleam](https://gleam.run/), a type safe language that runs on th
 Input:
 
 ```bash
-3
-a x1 k 5 7
-e d 3 2
-e k x1 8
+2
+a x0 3
+e * x0 5
 ```
 
 Output:
 
 ```bash
-15 //(3*(2+3))
-20 //(5+7 + 8, resulting in 20)
+15 
 ```
 
 ## Running the project
