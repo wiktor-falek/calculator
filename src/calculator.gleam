@@ -4,6 +4,10 @@ import gleam/int
 import gleam/string
 import gleam/result
 
+const min_register = 1
+
+const max_register = 10
+
 pub type Token {
   Evaluate
   Assign
@@ -13,6 +17,8 @@ pub type Token {
   OpDiv
   Register(Int)
   Integer(Int)
+  InvalidRegisterException(String)
+  InvalidValueException(String)
 }
 
 pub type RegisterValue {
@@ -20,8 +26,16 @@ pub type RegisterValue {
   None
 }
 
+pub fn invalid_register_exception(reason: String) {
+  InvalidRegisterException("InvalidRegisterException: " <> reason)
+}
+
+pub fn invalid_value_exception(reason: String) {
+  InvalidValueException("InvalidValueException: " <> reason)
+}
+
 pub fn create_registers(amount: Int) -> List(RegisterValue) {
-  list.range(0, amount - 1)
+  list.range(1, amount)
   |> list.map(fn(_) { None })
 }
 
@@ -54,12 +68,31 @@ pub fn parse_line(line: String) -> List(Token) {
         let xs = string.slice(reg_or_int, 1, string.length(reg_or_int))
         case x {
           "x" -> {
-            let register_number = result.unwrap(int.parse(xs), 69_420)
-            Register(register_number)
+            case int.parse(xs) {
+              Ok(num) ->
+                case num {
+                  num if num > max_register ->
+                    invalid_register_exception("x" <> xs <> " does not exist")
+                  num if num < min_register ->
+                    invalid_register_exception(
+                      "x" <> xs <> " is not a valid register",
+                    )
+                  num -> Register(num)
+                }
+              Error(_) ->
+                invalid_register_exception(
+                  "x" <> xs <> " is not a valid register",
+                )
+            }
           }
           _ -> {
-            let integer = result.unwrap(int.parse(x <> xs), 0)
-            Integer(integer)
+            case int.parse(reg_or_int) {
+              Ok(integer) -> Integer(integer)
+              _ ->
+                invalid_value_exception(
+                  "Expected Integer, found " <> reg_or_int,
+                )
+            }
           }
         }
       }
@@ -72,22 +105,13 @@ pub fn eval(tokens: List(Token)) {
 }
 
 pub fn main() {
-  let input = "1\na x1 + 1 2\n"
-  let processed_input =
+  let input = "a x1 3\na x2 5\na + x1 x2 x3\n e x3"
+
+  let lines =
     input
-    |> string.slice(0, string.length(input) - 1)
     |> string.split("\n")
 
-  let #(_line_count, lines) = case processed_input {
-    [] -> #(0, [])
-    [_] -> #(0, [])
-    [x, ..xs] -> {
-      let line_count = result.unwrap(int.parse(x), 0)
-      #(line_count, xs)
-    }
-  }
-
-  let _registers = create_registers(10)
+  let _registers = create_registers(max_register + 1 - min_register)
 
   let line_tokens = list.map(lines, parse_line)
 
