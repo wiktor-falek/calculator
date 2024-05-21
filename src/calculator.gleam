@@ -32,7 +32,10 @@ pub fn update_register(
   })
 }
 
-pub fn read_register(registers: List(t.RegisterValue), register_number: Int) {
+pub fn read_register(
+  registers: List(t.RegisterValue),
+  register_number: Int,
+) -> t.RegisterValue {
   case list.at(registers, register_number) {
     Ok(register_value) -> register_value
     Error(_) -> t.None
@@ -205,7 +208,10 @@ pub fn process_tokens(
   }
 }
 
-pub fn eval(tokens: List(t.Token), registers: List(t.RegisterValue)) {
+pub fn eval(
+  tokens: List(t.Token),
+  registers: List(t.RegisterValue),
+) -> #(t.Operand, List(t.RegisterValue)) {
   process_tokens(tokens, [], registers)
 }
 
