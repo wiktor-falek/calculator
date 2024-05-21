@@ -3,10 +3,16 @@ import gleam/list
 import gleam/int
 import gleam/string
 import gleam/result
+import utils
 
 const min_register = 1
 
 const max_register = 10
+
+pub type RegisterValue {
+  Some(Int)
+  None
+}
 
 pub type Token {
   Evaluate
@@ -17,13 +23,16 @@ pub type Token {
   OpDiv
   Register(Int)
   Integer(Int)
-  InvalidRegisterException(String)
   InvalidValueException(String)
+  InvalidRegisterException(String)
 }
 
-pub type RegisterValue {
-  Some(Int)
-  None
+pub type Operand {
+  RegisterOperand(Int)
+  IntegerOperand(Int)
+  InvalidArgumentsException(String)
+  InvalidParityException(String)
+  Nil
 }
 
 pub fn invalid_register_exception(reason: String) {
@@ -34,8 +43,24 @@ pub fn invalid_value_exception(reason: String) {
   InvalidValueException("InvalidValueException: " <> reason)
 }
 
-pub fn create_registers(amount: Int) -> List(RegisterValue) {
-  list.range(1, amount)
+pub fn invalid_parity_exception(expected: Int, found: Int) {
+  InvalidParityException(
+    "InvalidParityException: expected "
+    <> int.to_string(expected)
+    <> " arguments, found "
+    <> int.to_string(found),
+  )
+}
+
+pub fn invalid_arguments_exception() {
+  InvalidArgumentsException("InvalidArgumentsException")
+}
+
+pub fn create_registers(
+  min_register: Int,
+  max_register: Int,
+) -> List(RegisterValue) {
+  list.range(min_register, max_register)
   |> list.map(fn(_) { None })
 }
 
@@ -50,6 +75,13 @@ pub fn update_register(
       False -> v
     }
   })
+}
+
+pub fn read_register(registers: List(RegisterValue), register_number: Int) {
+  case list.at(registers, register_number) {
+    Ok(register_value) -> register_value
+    Error(_) -> None
+  }
 }
 
 pub fn parse_line(line: String) -> List(Token) {
@@ -100,20 +132,106 @@ pub fn parse_line(line: String) -> List(Token) {
   })
 }
 
+pub fn process_tokens(tokens: List(Token), stack: List(Operand)) {
+  case tokens {
+    [x, ..] -> {
+      case x {
+        Register(integer) ->
+          process_tokens(
+            list.drop(tokens, 1),
+            list.append(stack, [RegisterOperand(integer)]),
+          )
+        Integer(integer) ->
+          process_tokens(
+            list.drop(tokens, 1),
+            list.append(stack, [IntegerOperand(integer)]),
+          )
+        Evaluate -> {
+          case list.last(stack) {
+            Ok(value) -> {
+              // TODO: print operand as a string
+              io.debug(value)
+            }
+            Error(_) -> invalid_parity_exception(1, 0)
+          }
+        }
+        Assign -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [RegisterOperand(register), IntegerOperand(integer)] -> {
+              // TODO: assign integer to the register
+              io.debug(
+                "Assigning "
+                <> int.to_string(integer)
+                <> " to register"
+                <> int.to_string(register),
+              )
+              process_tokens(list.drop(tokens, 1), stack)
+            }
+            [_, _] -> invalid_arguments_exception()
+            rest -> invalid_parity_exception(2, list.length(rest))
+          }
+        }
+        OpAdd -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          let get_operand_value = fn(a: Operand) {
+            case a {
+              IntegerOperand(value) -> Ok(value)
+              RegisterOperand(register) -> {
+                // TODO: take in registers as arg, return updated regtisters
+                // case read_register([], register) {}
+                // read_register([], register)
+                Error("")
+              }
+              _ -> Error("")
+            }
+          }
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a)
+              let right = get_operand_value(b)
+
+              // if either left or right is an Error return 
+              // list.any([left, right], fn(a) { a == Error("") })
+
+              let value = IntegerOperand(1)
+              process_tokens(list.drop(tokens, 1), list.append(stack, [value]))
+            }
+            rest -> invalid_parity_exception(2, list.length(rest))
+          }
+        }
+        OpSub -> Nil
+        OpMul -> Nil
+        OpDiv -> Nil
+        _ ->
+          case list.last(stack) {
+            Ok(value) -> value
+            Error(_) -> Nil
+          }
+      }
+    }
+    _ -> Nil
+  }
+}
+
 pub fn eval(tokens: List(Token)) {
   io.debug(tokens)
+  // io.debug(stack)
 }
 
 pub fn main() {
-  let input = "a x1 3\na x2 5\na + x1 x2 x3\n e x3"
+  let input = "x1 3 a\n x2 2 3 + a\n x1 x2 + e"
 
   let lines =
     input
     |> string.split("\n")
 
-  let _registers = create_registers(max_register + 1 - min_register)
-
   let line_tokens = list.map(lines, parse_line)
+
+  let _registers = create_registers(min_register, max_register)
 
   list.each(line_tokens, eval)
 }
