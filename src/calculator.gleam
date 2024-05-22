@@ -1,51 +1,25 @@
+import exceptions
+import gleam/erlang
+import gleam/int
 import gleam/io
 import gleam/list
-import gleam/int
-import gleam/string
 import gleam/result
-import utils
-import exceptions
+import gleam/string
+import registers.{create_registers, read_register, update_register}
 import types as t
+import utils
 
 const min_register = 1
 
 const max_register = 10
 
-pub fn create_registers(
-  min_register: Int,
-  max_register: Int,
-) -> List(t.RegisterValue) {
-  list.range(min_register, max_register)
-  |> list.map(fn(_) { t.None })
-}
-
-pub fn update_register(
-  registers: List(t.RegisterValue),
-  register_number: Int,
-  val: Int,
-) -> List(t.RegisterValue) {
-  list.index_map(registers, fn(v, i) {
-    case i == register_number {
-      True -> t.Some(val)
-      False -> v
-    }
-  })
-}
-
-pub fn read_register(
-  registers: List(t.RegisterValue),
-  register_number: Int,
-) -> t.RegisterValue {
-  case list.at(registers, register_number) {
-    Ok(register_value) -> register_value
-    Error(_) -> t.None
-  }
-}
-
 pub fn parse_line(line: String) -> List(t.Token) {
-  string.split(line, " ")
+  line
+  |> string.replace("\n", "")
+  |> string.split(" ")
   |> list.filter(fn(x) { x != "" })
   |> list.map(fn(token) {
+    // TODO: Result(Token, Exception)
     case token {
       "e" -> t.Evaluate
       "a" -> t.Assign
@@ -53,44 +27,33 @@ pub fn parse_line(line: String) -> List(t.Token) {
       "-" -> t.OpSub
       "*" -> t.OpMul
       "/" -> t.OpDiv
-      reg_or_int -> {
-        let x = result.unwrap(string.first(reg_or_int), "")
-        let xs = string.slice(reg_or_int, 1, string.length(reg_or_int))
-        case x {
-          "x" -> {
-            case int.parse(xs) {
-              Ok(num) ->
-                case num {
-                  num if num > max_register ->
-                    exceptions.invalid_register("x" <> xs <> " does not exist")
-                  num if num < min_register ->
-                    exceptions.invalid_register(
-                      "x" <> xs <> " is not a valid register",
-                    )
-                  num -> t.Register(num)
-                }
-              Error(_) ->
-                exceptions.invalid_register(
-                  "x" <> xs <> " is not a valid register",
-                )
+      "x" <> xs -> {
+        case int.parse(xs) {
+          Ok(num) ->
+            case num {
+              num if num > max_register ->
+                exceptions.invalid_register("x" <> xs <> " does not exist")
+              num if num < min_register ->
+                exceptions.invalid_register("x" <> xs <> " does not exist")
+              num -> t.Register(num)
             }
+          Error(_) -> {
+            exceptions.invalid_register("x" <> xs <> " is not a valid register")
           }
-          _ -> {
-            case int.parse(reg_or_int) {
-              Ok(integer) -> t.Integer(integer)
-              _ ->
-                exceptions.invalid_value(
-                  "Expected Integer, found " <> reg_or_int,
-                )
-            }
-          }
+        }
+      }
+      str_integer -> {
+        case int.parse(str_integer) {
+          Ok(integer) -> t.Integer(integer)
+          Error(_) ->
+            exceptions.invalid_value("Expected Integer, found " <> str_integer)
         }
       }
     }
   })
 }
 
-pub fn process_tokens(
+fn process_tokens(
   tokens: List(t.Token),
   stack: List(t.Operand),
   registers: List(t.RegisterValue),
@@ -215,18 +178,19 @@ pub fn eval(
   process_tokens(tokens, [], registers)
 }
 
+pub fn read_forever(registers: List(t.RegisterValue)) {
+  let input = result.unwrap(erlang.get_line(""), "")
+  let tokens = parse_line(input)
+
+  let #(_, registers) = eval(tokens, registers)
+
+  case input {
+    ".exit\n" -> Nil
+    _ -> read_forever(registers)
+  }
+}
+
 pub fn main() {
-  let input = "x1 1 a\n x2 1 1 + a\n x1 x2 + e"
-
-  let line_tokens =
-    input
-    |> string.split("\n")
-    |> list.map(parse_line)
-
   let registers = create_registers(min_register, max_register)
-
-  list.fold(line_tokens, registers, fn(registers, tokens) {
-    let #(_, registers) = eval(tokens, registers)
-    registers
-  })
+  read_forever(registers)
 }
