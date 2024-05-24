@@ -18,6 +18,6 @@ pub fn invalid_parity(expected: Int, found: Int) {
   )
 }
 
-pub fn invalid_arguments() {
-  t.InvalidArgumentsException("TODO")
+pub fn invalid_arguments(info: String) {
+  t.InvalidArgumentsException(info)
 }

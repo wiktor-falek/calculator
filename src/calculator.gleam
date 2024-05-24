@@ -9,9 +9,7 @@ import registers.{create_registers, read_register, update_register}
 import types as t
 import utils
 
-const min_register = 1
-
-const max_register = 10
+const register_count = 10
 
 pub fn parse_line(line: String) -> List(t.Token) {
   line
@@ -19,9 +17,7 @@ pub fn parse_line(line: String) -> List(t.Token) {
   |> string.split(" ")
   |> list.filter(fn(x) { x != "" })
   |> list.map(fn(token) {
-    // TODO: Result(Token, Exception)
     case token {
-      "e" -> t.Evaluate
       "a" -> t.Assign
       "+" -> t.OpAdd
       "-" -> t.OpSub
@@ -31,9 +27,9 @@ pub fn parse_line(line: String) -> List(t.Token) {
         case int.parse(xs) {
           Ok(num) ->
             case num {
-              num if num > max_register ->
+              num if num > register_count ->
                 exceptions.invalid_register("x" <> xs <> " does not exist")
-              num if num < min_register ->
+              num if num < 1 ->
                 exceptions.invalid_register("x" <> xs <> " does not exist")
               num -> t.Register(num)
             }
@@ -67,44 +63,25 @@ fn process_tokens(
             list.append(stack, [t.RegisterOperand(integer)]),
             registers,
           )
-        t.Integer(integer) ->
+        t.Integer(integer) -> {
           process_tokens(
             rest_tokens,
             list.append(stack, [t.IntegerOperand(integer)]),
             registers,
           )
-        t.Evaluate -> {
-          let operand = case list.last(stack) {
-            Ok(value) -> {
-              let output = case value {
-                t.RegisterOperand(register) -> {
-                  case read_register(registers, register) {
-                    t.Some(integer) -> int.to_string(integer)
-                    t.None -> "nil"
-                  }
-                }
-                t.IntegerOperand(integer) -> int.to_string(integer)
-                t.InvalidArgumentsException(exception) -> exception
-                t.InvalidParityException(exception) -> exception
-                t.Nil -> "nil"
-              }
-
-              io.print("> " <> output <> "\n")
-              value
-            }
-            Error(_) -> exceptions.invalid_parity(1, 0)
-          }
-          #(operand, registers)
         }
         t.Assign -> {
           let #(stack, operands) = utils.take_and_split(stack, 2)
 
           case operands {
             [t.RegisterOperand(register), t.IntegerOperand(integer)] -> {
-              let registers = update_register(registers, register, integer)
+              let registers = update_register(registers, register - 1, integer)
               process_tokens(rest_tokens, stack, registers)
             }
-            [_, _] -> #(exceptions.invalid_arguments(), registers)
+            [_, _] -> #(
+              exceptions.invalid_arguments("Expected (Register, Int, a)"),
+              registers,
+            )
             rest -> #(
               exceptions.invalid_parity(2, list.length(rest)),
               registers,
@@ -118,7 +95,7 @@ fn process_tokens(
             case a {
               t.IntegerOperand(value) -> Ok(value)
               t.RegisterOperand(register) -> {
-                case read_register(registers, register) {
+                case read_register(registers, register - 1) {
                   t.Some(value) -> Ok(value)
                   _ -> Error("")
                 }
@@ -134,7 +111,7 @@ fn process_tokens(
               {
                 [Ok(a), Ok(b)] -> Ok(a + b)
                 _ -> {
-                  Error(exceptions.invalid_arguments())
+                  Error(exceptions.invalid_arguments("Expected (Int, Int, +)"))
                 }
               }
 
@@ -167,7 +144,13 @@ fn process_tokens(
         }
       }
     }
-    _ -> #(t.Nil, registers)
+    _ -> {
+      let value = case list.last(stack) {
+        Ok(op) -> op
+        Error(_) -> t.Nil
+      }
+      #(value, registers)
+    }
   }
 }
 
@@ -178,19 +161,38 @@ pub fn eval(
   process_tokens(tokens, [], registers)
 }
 
-pub fn read_forever(registers: List(t.RegisterValue)) {
+pub fn repl(registers: List(t.RegisterValue)) {
   let input = result.unwrap(erlang.get_line(""), "")
   let tokens = parse_line(input)
 
-  let #(_, registers) = eval(tokens, registers)
+  let #(value, registers) = eval(tokens, registers)
+
+  let output = case value {
+    t.RegisterOperand(register) -> {
+      case read_register(registers, register) {
+        t.Some(integer) -> {
+          int.to_string(integer)
+        }
+        t.None -> "nil"
+      }
+    }
+    t.IntegerOperand(integer) -> {
+      int.to_string(integer)
+    }
+    rest -> {
+      io.debug(rest)
+      ""
+    }
+  }
+  io.print(output <> "\n")
 
   case input {
     ".exit\n" -> Nil
-    _ -> read_forever(registers)
+    _ -> repl(registers)
   }
 }
 
 pub fn main() {
-  let registers = create_registers(min_register, max_register)
-  read_forever(registers)
+  let registers = create_registers(register_count)
+  repl(registers)
 }
