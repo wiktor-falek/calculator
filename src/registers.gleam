@@ -8,9 +8,9 @@ pub fn create_registers(amount: Int) -> List(t.RegisterValue) {
 
 pub fn read_register(
   registers: List(t.RegisterValue),
-  index: Int,
+  register_number: Int,
 ) -> t.RegisterValue {
-  case list.at(registers, index) {
+  case list.at(registers, register_number - 1) {
     Ok(register_value) -> register_value
     Error(_) -> t.None
   }
@@ -22,7 +22,7 @@ pub fn update_register(
   val: Int,
 ) -> List(t.RegisterValue) {
   list.index_map(registers, fn(v, i) {
-    case i == index {
+    case i == index - 1 {
       True -> t.Some(val)
       False -> v
     }

@@ -49,6 +49,22 @@ pub fn parse_line(line: String) -> List(t.Token) {
   })
 }
 
+fn get_operand_value(
+  a: t.Operand,
+  registers: List(t.RegisterValue),
+) -> Result(Int, String) {
+  case a {
+    t.IntegerOperand(value) -> Ok(value)
+    t.RegisterOperand(register) -> {
+      case read_register(registers, register) {
+        t.Some(value) -> Ok(value)
+        _ -> Error("")
+      }
+    }
+    _ -> Error("")
+  }
+}
+
 fn process_tokens(
   tokens: List(t.Token),
   stack: List(t.Operand),
@@ -75,13 +91,15 @@ fn process_tokens(
 
           case operands {
             [t.RegisterOperand(register), t.IntegerOperand(integer)] -> {
-              let registers = update_register(registers, register - 1, integer)
+              let registers = update_register(registers, register, integer)
+              let stack = list.append(stack, [t.IntegerOperand(integer)])
               process_tokens(rest_tokens, stack, registers)
             }
             [_, _] -> #(
               exceptions.invalid_arguments("Expected (Register, Int, a)"),
               registers,
             )
+
             rest -> #(
               exceptions.invalid_parity(2, list.length(rest)),
               registers,
@@ -91,31 +109,18 @@ fn process_tokens(
         t.OpAdd -> {
           let #(stack, operands) = utils.take_and_split(stack, 2)
 
-          let get_operand_value = fn(a: t.Operand) {
-            case a {
-              t.IntegerOperand(value) -> Ok(value)
-              t.RegisterOperand(register) -> {
-                case read_register(registers, register - 1) {
-                  t.Some(value) -> Ok(value)
-                  _ -> Error("")
-                }
-              }
-              _ -> Error("")
-            }
-          }
-
           case operands {
             [a, b] -> {
-              let sum_result = case
-                [get_operand_value(a), get_operand_value(b)]
-              {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let add_result = case [left, right] {
                 [Ok(a), Ok(b)] -> Ok(a + b)
                 _ -> {
                   Error(exceptions.invalid_arguments("Expected (Int, Int, +)"))
                 }
               }
 
-              case sum_result {
+              case add_result {
                 Ok(value) -> {
                   process_tokens(
                     rest_tokens,
@@ -132,9 +137,101 @@ fn process_tokens(
             )
           }
         }
-        t.OpSub -> #(t.Nil, registers)
-        t.OpMul -> #(t.Nil, registers)
-        t.OpDiv -> #(t.Nil, registers)
+        t.OpSub -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let sub_result = case [left, right] {
+                [Ok(a), Ok(b)] -> Ok(a - b)
+                _ -> {
+                  Error(exceptions.invalid_arguments("Expected (Int, Int, -)"))
+                }
+              }
+
+              case sub_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [t.IntegerOperand(value)]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
+        t.OpMul -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let mul_result = case [left, right] {
+                [Ok(a), Ok(b)] -> {
+                  Ok(a * b)
+                }
+                _ -> {
+                  Error(exceptions.invalid_arguments("Expected (Int, Int, *)"))
+                }
+              }
+
+              case mul_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [t.IntegerOperand(value)]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
+        t.OpDiv -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let div_result = case [left, right] {
+                [Ok(a), Ok(b)] -> Ok(a / b)
+                _ -> {
+                  Error(exceptions.invalid_arguments("Expected (Int, Int, /)"))
+                }
+              }
+
+              case div_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [t.IntegerOperand(value)]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
         _ -> {
           let operand = case list.last(stack) {
             Ok(value) -> value
