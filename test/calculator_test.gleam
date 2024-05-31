@@ -27,3 +27,4 @@ pub fn register_assignment_test() {
   |> list.at(0)
   |> should.equal(Ok(t.Some(1)))
 }
+// "1 1 + 2 +" should not work

@@ -72,6 +72,12 @@ fn process_tokens(
   case tokens {
     [token, ..rest_tokens] -> {
       case token {
+        t.Nil ->
+          process_tokens(
+            rest_tokens,
+            list.append(stack, [t.NilOperand]),
+            registers,
+          )
         t.Register(integer) ->
           process_tokens(
             rest_tokens,
@@ -251,7 +257,7 @@ fn process_tokens(
 }
 
 pub fn read() -> String {
-  let input = result.unwrap(erlang.get_line(""), "")
+  let input = result.unwrap(erlang.get_line("> "), "")
   input
 }
 
@@ -301,6 +307,8 @@ pub fn repl(registers: List(t.RegisterValue)) {
 }
 
 pub fn main() {
+  io.println("Reverse Polish Notation Calculator v0.x.x")
+
   let registers = create_registers(register_count)
   repl(registers)
 }

@@ -3,6 +3,11 @@ pub type RegisterValue {
   None
 }
 
+// pub type Number {
+//   Int
+//   Float
+// }
+
 pub type Token {
   Evaluate
   Assign
