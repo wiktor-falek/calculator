@@ -11,7 +11,7 @@ import utils
 
 const register_count = 10
 
-pub fn parse_line(line: String) -> List(t.Token) {
+pub fn tokenize(line: String) -> List(t.Token) {
   line
   |> string.replace("\n", "")
   |> string.split(" ")
@@ -41,8 +41,7 @@ pub fn parse_line(line: String) -> List(t.Token) {
       str_integer -> {
         case int.parse(str_integer) {
           Ok(integer) -> t.Integer(integer)
-          Error(_) ->
-            exceptions.invalid_value("Expected Integer, found " <> str_integer)
+          Error(_) -> t.Nil
         }
       }
     }
@@ -113,9 +112,9 @@ fn process_tokens(
             [a, b] -> {
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
-              let add_result = case [left, right] {
-                [Ok(a), Ok(b)] -> Ok(a + b)
-                _ -> {
+              let add_result = case left, right {
+                Ok(a), Ok(b) -> Ok(a + b)
+                _, _ -> {
                   Error(exceptions.invalid_arguments("Expected (Int, Int, +)"))
                 }
               }
@@ -144,9 +143,9 @@ fn process_tokens(
             [a, b] -> {
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
-              let sub_result = case [left, right] {
-                [Ok(a), Ok(b)] -> Ok(a - b)
-                _ -> {
+              let sub_result = case left, right {
+                Ok(a), Ok(b) -> Ok(a - b)
+                _, _ -> {
                   Error(exceptions.invalid_arguments("Expected (Int, Int, -)"))
                 }
               }
@@ -175,11 +174,11 @@ fn process_tokens(
             [a, b] -> {
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
-              let mul_result = case [left, right] {
-                [Ok(a), Ok(b)] -> {
+              let mul_result = case left, right {
+                Ok(a), Ok(b) -> {
                   Ok(a * b)
                 }
-                _ -> {
+                _, _ -> {
                   Error(exceptions.invalid_arguments("Expected (Int, Int, *)"))
                 }
               }
@@ -208,9 +207,9 @@ fn process_tokens(
             [a, b] -> {
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
-              let div_result = case [left, right] {
-                [Ok(a), Ok(b)] -> Ok(a / b)
-                _ -> {
+              let div_result = case left, right {
+                Ok(a), Ok(b) -> Ok(a / b)
+                _, _ -> {
                   Error(exceptions.invalid_arguments("Expected (Int, Int, /)"))
                 }
               }
@@ -235,7 +234,7 @@ fn process_tokens(
         _ -> {
           let operand = case list.last(stack) {
             Ok(value) -> value
-            Error(_) -> t.Nil
+            Error(_) -> t.NilOperand
           }
           #(operand, registers)
         }
@@ -244,11 +243,16 @@ fn process_tokens(
     _ -> {
       let value = case list.last(stack) {
         Ok(op) -> op
-        Error(_) -> t.Nil
+        Error(_) -> t.NilOperand
       }
       #(value, registers)
     }
   }
+}
+
+pub fn read() -> String {
+  let input = result.unwrap(erlang.get_line(""), "")
+  input
 }
 
 pub fn eval(
@@ -258,13 +262,11 @@ pub fn eval(
   process_tokens(tokens, [], registers)
 }
 
-pub fn repl(registers: List(t.RegisterValue)) {
-  let input = result.unwrap(erlang.get_line(""), "")
-  let tokens = parse_line(input)
-
-  let #(value, registers) = eval(tokens, registers)
-
-  let output = case value {
+pub fn format_value(
+  value: t.Operand,
+  registers: List(t.RegisterValue),
+) -> String {
+  case value {
     t.RegisterOperand(register) -> {
       case read_register(registers, register) {
         t.Some(integer) -> {
@@ -276,14 +278,23 @@ pub fn repl(registers: List(t.RegisterValue)) {
     t.IntegerOperand(integer) -> {
       int.to_string(integer)
     }
-    rest -> {
-      io.debug(rest)
-      ""
-    }
+    t.NilOperand -> "nil"
+    t.InvalidArgumentsException(e) -> "InvalidArgumentsException: " <> e
+    t.InvalidParityException(e) -> "InvalidParityException: " <> e
   }
-  io.print(output <> "\n")
+}
 
-  case input {
+pub fn repl(registers: List(t.RegisterValue)) {
+  let line = read()
+  let tokens = tokenize(line)
+
+  let #(value, registers) = eval(tokens, registers)
+
+  let output = format_value(value, registers)
+
+  io.println(output)
+
+  case line {
     ".exit\n" -> Nil
     _ -> repl(registers)
   }

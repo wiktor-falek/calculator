@@ -1,6 +1,6 @@
 import calculator.{eval}
-import gleam/list
 import gleam/io
+import gleam/list
 import gleeunit
 import gleeunit/should
 import registers.{create_registers}
@@ -14,7 +14,7 @@ pub fn eval_test() {
   let tokens = []
   let registers = create_registers(10)
   eval(tokens, registers)
-  |> should.equal(#(t.Nil, list.repeat(t.None, 10)))
+  |> should.equal(#(t.NilOperand, list.repeat(t.None, 10)))
 }
 
 pub fn register_assignment_test() {

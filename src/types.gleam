@@ -12,6 +12,7 @@ pub type Token {
   OpDiv
   Register(Int)
   Integer(Int)
+  Nil
   InvalidValueException(String)
   InvalidRegisterException(String)
 }
@@ -19,7 +20,7 @@ pub type Token {
 pub type Operand {
   RegisterOperand(Int)
   IntegerOperand(Int)
+  NilOperand
   InvalidArgumentsException(String)
   InvalidParityException(String)
-  Nil
 }
