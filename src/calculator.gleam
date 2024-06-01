@@ -117,18 +117,17 @@ fn process_tokens(
           let #(stack, operands) = utils.take_and_split(stack, 2)
 
           case operands {
-            [
-              t.RegisterOperand(register),
-              t.NumberOperand(t.IntegerOperand(integer)),
-            ] -> {
+            [t.RegisterOperand(register), t.NumberOperand(number)] -> {
               let registers =
-                update_register(registers, register, t.Integer(integer))
-              let stack =
-                list.append(stack, [t.NumberOperand(t.IntegerOperand(integer))])
+                update_register(registers, register, case number {
+                  t.IntegerOperand(integer) -> t.Integer(integer)
+                  t.FloatOperand(float) -> t.Float(float)
+                })
+              let stack = list.append(stack, [t.NumberOperand(number)])
               process_tokens(rest_tokens, stack, registers)
             }
             [_, _] -> #(
-              exceptions.invalid_arguments("Expected (Register, Int, =)"),
+              exceptions.invalid_arguments("Expected (Register, Number, =)"),
               registers,
             )
             rest -> #(

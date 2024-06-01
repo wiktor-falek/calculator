@@ -38,3 +38,4 @@ pub type Operand {
   InvalidArgumentsException(String)
   InvalidParityException(String)
 }
+// TODO: see if Number and NumberOperand can be unified to avoid type conversions
