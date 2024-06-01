@@ -1,5 +1,5 @@
 pub type RegisterValue {
-  Some(Int)
+  Some(Number)
   None
 }
 
@@ -25,10 +25,14 @@ pub type Token {
   InvalidRegisterException(String)
 }
 
-pub type Operand {
-  RegisterOperand(Int)
+pub type NumberOperand {
   IntegerOperand(Int)
   FloatOperand(Float)
+}
+
+pub type Operand {
+  RegisterOperand(Int)
+  NumberOperand(NumberOperand)
   NilOperand
   DivisionByZeroException(String)
   InvalidArgumentsException(String)

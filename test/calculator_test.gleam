@@ -25,6 +25,6 @@ pub fn register_assignment_test() {
 
   registers
   |> list.at(0)
-  |> should.equal(Ok(t.Some(1)))
+  |> should.equal(Ok(t.Some(t.Integer(1))))
 }
 // "1 1 + 2 +" should not work
