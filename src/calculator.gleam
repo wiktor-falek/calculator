@@ -167,7 +167,6 @@ fn process_tokens(
                   process_tokens(
                     rest_tokens,
                     list.append(stack, [value]),
-                    // TODO
                     registers,
                   )
                 }
@@ -180,102 +179,203 @@ fn process_tokens(
             )
           }
         }
+        t.OpSub -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
 
-        // t.OpSub -> {
-        //   let #(stack, operands) = utils.take_and_split(stack, 2)
-        //   case operands {
-        //     [a, b] -> {
-        //       let left = get_operand_value(a, registers)
-        //       let right = get_operand_value(b, registers)
-        //       let sub_result = case left, right {
-        //         Ok(a), Ok(b) -> Ok(a - b)
-        //         _, _ -> {
-        //           Error(exceptions.invalid_arguments("Expected (Int, Int, -)"))
-        //         }
-        //       }
-        //       case sub_result {
-        //         Ok(value) -> {
-        //           process_tokens(
-        //             rest_tokens,
-        //             list.append(stack, [
-        //               t.NumberOperand(t.IntegerOperand(value)),
-        //             ]),
-        //             registers,
-        //           )
-        //         }
-        //         Error(exception) -> #(exception, registers)
-        //       }
-        //     }
-        //     rest -> #(
-        //       exceptions.invalid_parity(2, list.length(rest)),
-        //       registers,
-        //     )
-        //   }
-        // }
-        // t.OpMul -> {
-        //   let #(stack, operands) = utils.take_and_split(stack, 2)
-        //   case operands {
-        //     [a, b] -> {
-        //       let left = get_operand_value(a, registers)
-        //       let right = get_operand_value(b, registers)
-        //       let mul_result = case left, right {
-        //         Ok(a), Ok(b) -> {
-        //           Ok(a * b)
-        //         }
-        //         _, _ -> {
-        //           Error(exceptions.invalid_arguments("Expected (Int, Int, *)"))
-        //         }
-        //       }
-        //       case mul_result {
-        //         Ok(value) -> {
-        //           process_tokens(
-        //             rest_tokens,
-        //             list.append(stack, [
-        //               t.NumberOperand(t.IntegerOperand(value)),
-        //             ]),
-        //             registers,
-        //           )
-        //         }
-        //         Error(exception) -> #(exception, registers)
-        //       }
-        //     }
-        //     rest -> #(
-        //       exceptions.invalid_parity(2, list.length(rest)),
-        //       registers,
-        //     )
-        //   }
-        // }
-        // t.OpDiv -> {
-        //   let #(stack, operands) = utils.take_and_split(stack, 2)
-        //   case operands {
-        //     [a, b] -> {
-        //       let left = get_operand_value(a, registers)
-        //       let right = get_operand_value(b, registers)
-        //       let div_result = case left, right {
-        //         Ok(a), Ok(b) -> Ok(a / b)
-        //         _, _ -> {
-        //           Error(exceptions.invalid_arguments("Expected (Int, Int, /)"))
-        //         }
-        //       }
-        //       case div_result {
-        //         Ok(value) -> {
-        //           process_tokens(
-        //             rest_tokens,
-        //             list.append(stack, [
-        //               t.NumberOperand(t.IntegerOperand(value)),
-        //             ]),
-        //             registers,
-        //           )
-        //         }
-        //         Error(exception) -> #(exception, registers)
-        //       }
-        //     }
-        //     rest -> #(
-        //       exceptions.invalid_parity(2, list.length(rest)),
-        //       registers,
-        //     )
-        //   }
-        // }
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let sub_result = case left, right {
+                Ok(a), Ok(b) ->
+                  case a, b {
+                    t.Integer(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.IntegerOperand(a - b)))
+                    t.Float(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a -. int.to_float(b))))
+                    t.Integer(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(int.to_float(a) -. b)))
+                    t.Float(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a -. b)))
+                  }
+                _, _ -> {
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, -)",
+                  ))
+                }
+              }
+
+              case sub_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [value]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
+        t.OpMul -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let mul_result = case left, right {
+                Ok(a), Ok(b) ->
+                  case a, b {
+                    t.Integer(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.IntegerOperand(a * b)))
+                    t.Float(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a *. int.to_float(b))))
+                    t.Integer(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(int.to_float(a) *. b)))
+                    t.Float(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a *. b)))
+                  }
+                _, _ -> {
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, *)",
+                  ))
+                }
+              }
+
+              case mul_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [value]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
+        t.OpDiv -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let div_result = case left, right {
+                Ok(a), Ok(b) ->
+                  case b {
+                    t.Integer(0) | t.Float(0.0) ->
+                      Error(exceptions.division_by_zero_exception())
+                    _ ->
+                      case a, b {
+                        t.Integer(a), t.Integer(b) -> {
+                          Ok(
+                            t.NumberOperand(t.FloatOperand(
+                              int.to_float(a) /. int.to_float(b),
+                            )),
+                          )
+                        }
+                        t.Float(a), t.Integer(b) ->
+                          Ok(
+                            t.NumberOperand(t.FloatOperand(a /. int.to_float(b))),
+                          )
+                        t.Integer(a), t.Float(b) ->
+                          Ok(
+                            t.NumberOperand(t.FloatOperand(int.to_float(a) /. b)),
+                          )
+                        t.Float(a), t.Float(b) ->
+                          Ok(t.NumberOperand(t.FloatOperand(a /. b)))
+                      }
+                  }
+                _, _ -> {
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, /)",
+                  ))
+                }
+              }
+
+              case div_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [value]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
+        t.OpMod -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let mod_result = case left, right {
+                Ok(a), Ok(b) ->
+                  case b {
+                    t.Integer(0) | t.Float(0.0) ->
+                      Error(exceptions.division_by_zero_exception())
+                    _ -> {
+                      // TODO: utils?
+                      let number_to_float = fn(n: t.Number) -> Float {
+                        case n {
+                          t.Float(float) -> float
+                          t.Integer(integer) -> int.to_float(integer)
+                        }
+                      }
+                      let float_a = number_to_float(a)
+                      let float_b = number_to_float(b)
+
+                      Ok(
+                        t.NumberOperand(
+                          t.FloatOperand(utils.float_modulo(float_a, float_b)),
+                        ),
+                      )
+                    }
+                  }
+                _, _ -> {
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, /)",
+                  ))
+                }
+              }
+
+              case mod_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [value]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
         // t.OpMod -> {
         //   let #(stack, operands) = utils.take_and_split(stack, 2)
         //   case operands {
@@ -346,6 +446,21 @@ pub fn eval(
   process_tokens(tokens, [], registers)
 }
 
+pub fn round_format_number(number: t.Number) -> String {
+  case number {
+    t.Integer(integer) -> {
+      int.to_string(integer)
+    }
+    t.Float(float) -> {
+      let is_whole = float == int.to_float(float.truncate(float))
+      case is_whole {
+        True -> int.to_string(float.truncate(float))
+        False -> float.to_string(float)
+      }
+    }
+  }
+}
+
 pub fn format_value(
   value: t.Operand,
   registers: List(t.RegisterValue),
@@ -353,24 +468,15 @@ pub fn format_value(
   case value {
     t.RegisterOperand(register) -> {
       case read_register(registers, register) {
-        t.Some(number) -> {
-          case number {
-            t.Integer(integer) -> {
-              int.to_string(integer)
-            }
-            t.Float(float) -> {
-              float.to_string(float)
-            }
-          }
-        }
+        t.Some(number) -> round_format_number(number)
         t.None -> "nil"
       }
     }
-    t.NumberOperand(t.IntegerOperand(integer)) -> {
-      int.to_string(integer)
-    }
-    t.NumberOperand(t.FloatOperand(float)) -> {
-      float.to_string(float)
+    t.NumberOperand(number) -> {
+      round_format_number(case number {
+        t.IntegerOperand(integer) -> t.Integer(integer)
+        t.FloatOperand(float) -> t.Float(float)
+      })
     }
     t.NilOperand -> "nil"
     t.InvalidArgumentsException(e) -> "InvalidArgumentsException: " <> e
