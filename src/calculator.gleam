@@ -497,6 +497,33 @@ pub fn round_format_number(number: t.Number) -> String {
   }
 }
 
+pub fn print_help(register_count: Int) {
+  io.println(
+    "
+Commands:
+  .help
+  .exit
+  .whatever
+
+Variable Registers:
+  Available Registers: 
+    x1, ..., x10
+  Example Assignment:
+    > x1 1 =
+
+Operations:
+  Assignment     ( Register, Number, =)
+  Addition       ( Number, Number, + )
+  Subtraction    ( Number, Number, - )
+  Multiplication ( Number, Number, * )
+  Division       ( Number, Number, / )
+  Modulo         ( Number, Number, % )
+  Power          ( Number, Number, ** )
+  Square Root    ( Number, ^ )
+",
+  )
+}
+
 pub fn format_value(
   value: t.Operand,
   registers: List(t.RegisterValue),
@@ -530,7 +557,11 @@ pub fn repl(registers: List(t.RegisterValue)) {
   let output = format_value(value, registers)
 
   case line {
-    ".exit" -> Nil
+    ".exit" | ".e" -> Nil
+    ".help" | ".h" -> {
+      print_help(list.length(registers))
+      repl(registers)
+    }
     "" -> repl(registers)
     _ -> {
       io.println(output)
@@ -540,7 +571,8 @@ pub fn repl(registers: List(t.RegisterValue)) {
 }
 
 pub fn main() {
-  io.println("Reverse Polish Notation Calculator v0.x.x")
+  io.println("Welcome to Reverse Polish Notation Calculator v1.0.0")
+  io.println("Type \".help\" for more information")
 
   let registers = create_registers(register_count)
   repl(registers)
