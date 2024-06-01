@@ -1,3 +1,4 @@
+import gleam/float
 import gleam/int
 import gleam/list
 
@@ -16,6 +17,12 @@ pub fn take_and_split(a, amount) {
   list.split(a, int.max(0, list.length(a) - amount))
 }
 
-pub fn float_modulo(a: Float, n: Float) -> Float {
-  todo
+pub fn float_modulo(a: Float, b: Float) -> Float {
+  // TODO:
+  // > 1000000000000001 2 %
+  // 1
+  // > 10000000000000001 2 %
+  // 0
+
+  a -. { b *. float.floor(a /. b) }
 }
