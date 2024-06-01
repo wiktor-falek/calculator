@@ -421,8 +421,38 @@ fn process_tokens(
             )
           }
         }
-        // t.OpSqrt -> {
-        // }
+        t.OpSqrt -> {
+          let #(stack, operands) = utils.take_and_split(stack, 1)
+
+          let sqrt_result = case operands {
+            [t.NumberOperand(number)] -> {
+              let float_a =
+                number_to_float(case number {
+                  t.FloatOperand(float) -> t.Float(float)
+                  t.IntegerOperand(integer) -> t.Integer(integer)
+                })
+
+              case float.square_root(float_a) {
+                Ok(value) -> Ok(t.NumberOperand(t.FloatOperand(value)))
+                Error(_) ->
+                  Error(exceptions.invalid_fractional_exponent_exception())
+              }
+            }
+            [_] -> Error(exceptions.invalid_arguments("Expected (Number, ^)"))
+            xs -> Error(exceptions.invalid_parity(1, list.length(xs)))
+          }
+
+          case sqrt_result {
+            Ok(value) -> {
+              process_tokens(
+                rest_tokens,
+                list.append(stack, [value]),
+                registers,
+              )
+            }
+            Error(exception) -> #(exception, registers)
+          }
+        }
         _ -> {
           let operand = case list.last(stack) {
             Ok(value) -> value
