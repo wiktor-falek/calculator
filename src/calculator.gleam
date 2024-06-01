@@ -1,5 +1,6 @@
 import exceptions
 import gleam/erlang
+import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
@@ -41,10 +42,14 @@ pub fn tokenize(line: String) -> List(t.Token) {
           }
         }
       }
-      str_integer -> {
-        case int.parse(str_integer) {
+      str_number -> {
+        case int.parse(str_number) {
           Ok(integer) -> t.Integer(integer)
-          Error(_) -> t.Nil
+          Error(_) ->
+            case float.parse(str_number) {
+              Ok(float) -> t.Float(float)
+              Error(_) -> t.Nil
+            }
         }
       }
     }
@@ -91,6 +96,13 @@ fn process_tokens(
           process_tokens(
             rest_tokens,
             list.append(stack, [t.IntegerOperand(integer)]),
+            registers,
+          )
+        }
+        t.Float(float) -> {
+          process_tokens(
+            rest_tokens,
+            list.append(stack, [t.FloatOperand(float)]),
             registers,
           )
         }
@@ -274,7 +286,6 @@ fn process_tokens(
             )
           }
         }
-
         // t.OpSqrt -> {
         // }
         // t.OpPow -> {
@@ -325,6 +336,9 @@ pub fn format_value(
     }
     t.IntegerOperand(integer) -> {
       int.to_string(integer)
+    }
+    t.FloatOperand(float) -> {
+      float.to_string(float)
     }
     t.NilOperand -> "nil"
     t.InvalidArgumentsException(e) -> "InvalidArgumentsException: " <> e

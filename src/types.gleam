@@ -20,6 +20,7 @@ pub type Token {
   OpSqrt
   Register(Int)
   Integer(Int)
+  Float(Float)
   Nil
   InvalidValueException(String)
   InvalidRegisterException(String)
@@ -28,6 +29,7 @@ pub type Token {
 pub type Operand {
   RegisterOperand(Int)
   IntegerOperand(Int)
+  FloatOperand(Float)
   NilOperand
   DivisionByZeroException(String)
   InvalidArgumentsException(String)
