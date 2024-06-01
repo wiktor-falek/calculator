@@ -76,6 +76,13 @@ fn get_operand_value(
   }
 }
 
+fn number_to_float(n: t.Number) -> Float {
+  case n {
+    t.Float(float) -> float
+    t.Integer(integer) -> int.to_float(integer)
+  }
+}
+
 fn process_tokens(
   tokens: List(t.Token),
   stack: List(t.Operand),
@@ -335,13 +342,6 @@ fn process_tokens(
                     t.Integer(0) | t.Float(0.0) ->
                       Error(exceptions.division_by_zero_exception())
                     _ -> {
-                      // TODO: utils?
-                      let number_to_float = fn(n: t.Number) -> Float {
-                        case n {
-                          t.Float(float) -> float
-                          t.Integer(integer) -> int.to_float(integer)
-                        }
-                      }
                       let float_a = number_to_float(a)
                       let float_b = number_to_float(b)
 
@@ -376,44 +376,52 @@ fn process_tokens(
             )
           }
         }
-        // t.OpMod -> {
-        //   let #(stack, operands) = utils.take_and_split(stack, 2)
-        //   case operands {
-        //     [a, b] -> {
-        //       let left = get_operand_value(a, registers)
-        //       let right = get_operand_value(b, registers)
-        //       let div_result = case left, right {
-        //         Ok(a), Ok(b) ->
-        //           case int.modulo(a, b) {
-        //             Ok(result) -> Ok(result)
-        //             Error(_) -> Error(exceptions.division_by_zero_exception())
-        //           }
-        //         _, _ -> {
-        //           Error(exceptions.invalid_arguments("Expected (Int, Int, %)"))
-        //         }
-        //       }
-        //       case div_result {
-        //         Ok(value) -> {
-        //           process_tokens(
-        //             rest_tokens,
-        //             list.append(stack, [
-        //               t.NumberOperand(t.IntegerOperand(value)),
-        //             ]),
-        //             registers,
-        //           )
-        //         }
-        //         Error(exception) -> #(exception, registers)
-        //       }
-        //     }
-        //     rest -> #(
-        //       exceptions.invalid_parity(2, list.length(rest)),
-        //       registers,
-        //     )
-        //   }
-        // }
+        t.OpPow -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let a =
+                result.try(get_operand_value(a, registers), fn(a) {
+                  Ok(number_to_float(a))
+                })
+              let b =
+                result.try(get_operand_value(b, registers), fn(b) {
+                  Ok(number_to_float(b))
+                })
+              let mul_result = case a, b {
+                Ok(a), Ok(b) -> {
+                  case float.power(a, b) {
+                    Ok(float) -> Ok(t.NumberOperand(t.FloatOperand(float)))
+                    Error(_) ->
+                      Error(exceptions.invalid_fractional_exponent_exception())
+                  }
+                }
+                _, _ -> {
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, *)",
+                  ))
+                }
+              }
+
+              case mul_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [value]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
         // t.OpSqrt -> {
-        // }
-        // t.OpPow -> {
         // }
         _ -> {
           let operand = case list.last(stack) {
@@ -482,6 +490,8 @@ pub fn format_value(
     t.InvalidArgumentsException(e) -> "InvalidArgumentsException: " <> e
     t.InvalidParityException(e) -> "InvalidParityException: " <> e
     t.DivisionByZeroException(e) -> "DivisionByZeroException: " <> e
+    t.InvalidFractionalExponentException(e) ->
+      "InvalidFractionalExponentException: " <> e
   }
 }
 

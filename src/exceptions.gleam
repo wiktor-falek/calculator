@@ -25,3 +25,9 @@ pub fn invalid_arguments(info: String) {
 pub fn division_by_zero_exception() {
   t.DivisionByZeroException("Cannot divide by 0")
 }
+
+pub fn invalid_fractional_exponent_exception() {
+  t.InvalidFractionalExponentException(
+    "Raising a negative number to a fractional power results in a complex number",
+  )
+}

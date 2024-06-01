@@ -37,5 +37,6 @@ pub type Operand {
   DivisionByZeroException(String)
   InvalidArgumentsException(String)
   InvalidParityException(String)
+  InvalidFractionalExponentException(String)
 }
 // TODO: see if Number and NumberOperand can be unified to avoid type conversions
