@@ -104,7 +104,6 @@ fn process_tokens(
               exceptions.invalid_arguments("Expected (Register, Int, a)"),
               registers,
             )
-
             rest -> #(
               exceptions.invalid_parity(2, list.length(rest)),
               registers,
