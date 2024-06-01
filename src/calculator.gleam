@@ -18,7 +18,7 @@ pub fn tokenize(line: String) -> List(t.Token) {
   |> list.filter(fn(x) { x != "" })
   |> list.map(fn(token) {
     case token {
-      "a" -> t.Assign
+      "=" -> t.Assign
       "+" -> t.OpAdd
       "-" -> t.OpSub
       "*" -> t.OpMul
@@ -101,7 +101,7 @@ fn process_tokens(
               process_tokens(rest_tokens, stack, registers)
             }
             [_, _] -> #(
-              exceptions.invalid_arguments("Expected (Register, Int, a)"),
+              exceptions.invalid_arguments("Expected (Register, Int, =)"),
               registers,
             )
             rest -> #(

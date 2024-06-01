@@ -11,8 +11,8 @@ Implemented in [Gleam](https://gleam.run/), a type safe functional language that
 - **Variable Registers**: Supports a customizable amount of variable registers (x1 to x10 by default), allowing users to store values in memory.
 
 - **Register Assignments**:
-  - `x1 5 a`: Assigns the value of 5 to the x1 register.
-  - `2 x1 5 a *`: Assignments return the register value, allowing the use of assignments as an argument for another operation
+  - `x1 5 =`: Assigns the value of 5 to the x1 register.
+  - `2 x1 5 = *`: Assignments return the register value, allowing the use of assignments as an argument for another operation
 - **Example Operations**:
   - `1 2 +`: 1 + 2
   - `3 2 1 + *`: (1 + 2) \* 3
