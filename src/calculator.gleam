@@ -354,7 +354,7 @@ fn process_tokens(
                   }
                 _, _ -> {
                   Error(exceptions.invalid_arguments(
-                    "Expected (Number, Number, /)",
+                    "Expected (Number, Number, %)",
                   ))
                 }
               }
