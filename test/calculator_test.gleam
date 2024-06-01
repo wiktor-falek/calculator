@@ -18,7 +18,7 @@ pub fn eval_test() {
 }
 
 pub fn register_assignment_test() {
-  let tokens = [t.Register(1), t.Integer(1), t.Assign]
+  let tokens = [t.Register(1), t.Number(t.Integer(1)), t.Assign]
   let registers = create_registers(10)
   let #(_, registers) = eval(tokens, registers)
   io.debug(registers)

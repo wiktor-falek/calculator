@@ -44,10 +44,10 @@ pub fn tokenize(line: String) -> List(t.Token) {
       }
       str_number -> {
         case int.parse(str_number) {
-          Ok(integer) -> t.Integer(integer)
+          Ok(integer) -> t.Number(t.Integer(integer))
           Error(_) ->
             case float.parse(str_number) {
-              Ok(float) -> t.Float(float)
+              Ok(float) -> t.Number(t.Float(float))
               Error(_) -> t.Nil
             }
         }
@@ -92,20 +92,37 @@ fn process_tokens(
             list.append(stack, [t.RegisterOperand(integer)]),
             registers,
           )
-        t.Integer(integer) -> {
-          process_tokens(
-            rest_tokens,
-            list.append(stack, [t.IntegerOperand(integer)]),
-            registers,
-          )
-        }
-        t.Float(float) -> {
-          process_tokens(
-            rest_tokens,
-            list.append(stack, [t.FloatOperand(float)]),
-            registers,
-          )
-        }
+        t.Number(number) ->
+          case number {
+            t.Integer(integer) -> {
+              process_tokens(
+                rest_tokens,
+                list.append(stack, [t.IntegerOperand(integer)]),
+                registers,
+              )
+            }
+            t.Float(float) -> {
+              process_tokens(
+                rest_tokens,
+                list.append(stack, [t.FloatOperand(float)]),
+                registers,
+              )
+            }
+          }
+        // t.Integer(integer) -> {
+        //   process_tokens(
+        //     rest_tokens,
+        //     list.append(stack, [t.IntegerOperand(integer)]),
+        //     registers,
+        //   )
+        // }
+        // t.Float(float) -> {
+        //   process_tokens(
+        //     rest_tokens,
+        //     list.append(stack, [t.FloatOperand(float)]),
+        //     registers,
+        //   )
+        // }
         t.Assign -> {
           let #(stack, operands) = utils.take_and_split(stack, 2)
 
@@ -350,6 +367,8 @@ pub fn format_value(
 pub fn repl(registers: List(t.RegisterValue)) {
   let line = read()
   let tokens = tokenize(line)
+
+  io.debug(tokens)
 
   let #(value, registers) = eval(tokens, registers)
 

@@ -3,10 +3,10 @@ pub type RegisterValue {
   None
 }
 
-// pub type Number {
-//   Int
-//   Float
-// }
+pub type Number {
+  Integer(Int)
+  Float(Float)
+}
 
 pub type Token {
   Evaluate
@@ -19,8 +19,7 @@ pub type Token {
   OpMod
   OpSqrt
   Register(Int)
-  Integer(Int)
-  Float(Float)
+  Number(Number)
   Nil
   InvalidValueException(String)
   InvalidRegisterException(String)
