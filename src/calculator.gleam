@@ -31,15 +31,11 @@ pub fn tokenize(line: String) -> List(t.Token) {
         case int.parse(xs) {
           Ok(num) ->
             case num {
-              num if num > register_count ->
-                exceptions.invalid_register("x" <> xs <> " does not exist")
-              num if num < 1 ->
-                exceptions.invalid_register("x" <> xs <> " does not exist")
+              num if num > register_count -> exceptions.invalid_register(xs)
+              num if num < 1 -> exceptions.invalid_register(xs)
               num -> t.Register(num)
             }
-          Error(_) -> {
-            exceptions.invalid_register("x" <> xs <> " is not a valid register")
-          }
+          Error(_) -> exceptions.invalid_register(xs)
         }
       }
       str_number -> {
@@ -56,7 +52,7 @@ pub fn tokenize(line: String) -> List(t.Token) {
   })
 }
 
-fn get_operand_value(
+pub fn get_operand_value(
   operand: t.Operand,
   registers: List(t.RegisterValue),
 ) -> Result(t.Number, String) {
@@ -76,14 +72,14 @@ fn get_operand_value(
   }
 }
 
-fn number_to_float(n: t.Number) -> Float {
+pub fn number_to_float(n: t.Number) -> Float {
   case n {
     t.Float(float) -> float
     t.Integer(integer) -> int.to_float(integer)
   }
 }
 
-fn process_tokens(
+pub fn process_tokens(
   tokens: List(t.Token),
   stack: List(t.Operand),
   registers: List(t.RegisterValue),
@@ -453,7 +449,7 @@ fn process_tokens(
             Error(exception) -> #(exception, registers)
           }
         }
-        _ -> {
+        _exception -> {
           let operand = case list.last(stack) {
             Ok(value) -> value
             Error(_) -> t.NilOperand
@@ -462,7 +458,7 @@ fn process_tokens(
         }
       }
     }
-    _ -> {
+    [] -> {
       let value = case list.last(stack) {
         Ok(op) -> op
         Error(_) -> t.NilOperand
@@ -473,8 +469,9 @@ fn process_tokens(
 }
 
 pub fn read() -> String {
-  let input = result.unwrap(erlang.get_line("> "), "")
-  input
+  erlang.get_line("> ")
+  |> result.unwrap("")
+  |> string.replace("\n", "")
 }
 
 pub fn eval(
@@ -490,6 +487,7 @@ pub fn round_format_number(number: t.Number) -> String {
       int.to_string(integer)
     }
     t.Float(float) -> {
+      // TODO: round things like 0.30000000000000004 to 0.3
       let is_whole = float == int.to_float(float.truncate(float))
       case is_whole {
         True -> int.to_string(float.truncate(float))
@@ -528,16 +526,16 @@ pub fn format_value(
 pub fn repl(registers: List(t.RegisterValue)) {
   let line = read()
   let tokens = tokenize(line)
-
   let #(value, registers) = eval(tokens, registers)
-
   let output = format_value(value, registers)
 
-  io.println(output)
-
   case line {
-    ".exit\n" -> Nil
-    _ -> repl(registers)
+    ".exit" -> Nil
+    "" -> repl(registers)
+    _ -> {
+      io.println(output)
+      repl(registers)
+    }
   }
 }
 

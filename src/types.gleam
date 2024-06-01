@@ -9,7 +9,6 @@ pub type Number {
 }
 
 pub type Token {
-  Evaluate
   Assign
   OpAdd
   OpSub
@@ -39,4 +38,3 @@ pub type Operand {
   InvalidParityException(String)
   InvalidFractionalExponentException(String)
 }
-// TODO: see if Number and NumberOperand can be unified to avoid type conversions

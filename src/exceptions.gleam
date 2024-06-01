@@ -1,8 +1,8 @@
 import gleam/int
 import types as t
 
-pub fn invalid_register(reason: String) {
-  t.InvalidRegisterException(reason)
+pub fn invalid_register(register: String) {
+  t.InvalidRegisterException("Register x" <> register <> " does not exist")
 }
 
 pub fn invalid_value(reason: String) {
