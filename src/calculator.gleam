@@ -23,6 +23,9 @@ pub fn tokenize(line: String) -> List(t.Token) {
       "-" -> t.OpSub
       "*" -> t.OpMul
       "/" -> t.OpDiv
+      "%" -> t.OpMod
+      "^" -> t.OpSqrt
+      "**" -> t.OpPow
       "x" <> xs -> {
         case int.parse(xs) {
           Ok(num) ->
@@ -236,6 +239,46 @@ fn process_tokens(
             )
           }
         }
+        t.OpMod -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
+
+          case operands {
+            [a, b] -> {
+              let left = get_operand_value(a, registers)
+              let right = get_operand_value(b, registers)
+              let div_result = case left, right {
+                Ok(a), Ok(b) ->
+                  case int.modulo(a, b) {
+                    Ok(result) -> Ok(result)
+                    Error(_) -> Error(exceptions.division_by_zero_exception())
+                  }
+                _, _ -> {
+                  Error(exceptions.invalid_arguments("Expected (Int, Int, %)"))
+                }
+              }
+
+              case div_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [t.IntegerOperand(value)]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
+
+        // t.OpSqrt -> {
+        // }
+        // t.OpPow -> {
+        // }
         _ -> {
           let operand = case list.last(stack) {
             Ok(value) -> value
@@ -286,6 +329,7 @@ pub fn format_value(
     t.NilOperand -> "nil"
     t.InvalidArgumentsException(e) -> "InvalidArgumentsException: " <> e
     t.InvalidParityException(e) -> "InvalidParityException: " <> e
+    t.DivisionByZeroException(e) -> "DivisionByZeroException: " <> e
   }
 }
 

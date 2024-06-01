@@ -21,3 +21,7 @@ pub fn invalid_parity(expected: Int, found: Int) {
 pub fn invalid_arguments(info: String) {
   t.InvalidArgumentsException(info)
 }
+
+pub fn division_by_zero_exception() {
+  t.DivisionByZeroException("Cannot divide by 0")
+}

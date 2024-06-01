@@ -15,6 +15,9 @@ pub type Token {
   OpSub
   OpMul
   OpDiv
+  OpPow
+  OpMod
+  OpSqrt
   Register(Int)
   Integer(Int)
   Nil
@@ -26,6 +29,7 @@ pub type Operand {
   RegisterOperand(Int)
   IntegerOperand(Int)
   NilOperand
+  DivisionByZeroException(String)
   InvalidArgumentsException(String)
   InvalidParityException(String)
 }
