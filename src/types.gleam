@@ -1,15 +1,14 @@
 pub type RegisterValue {
-  Some(Int)
+  Some(Number)
   None
 }
 
-// pub type Number {
-//   Int
-//   Float
-// }
+pub type Number {
+  Integer(Int)
+  Float(Float)
+}
 
 pub type Token {
-  Evaluate
   Assign
   OpAdd
   OpSub
@@ -19,17 +18,23 @@ pub type Token {
   OpMod
   OpSqrt
   Register(Int)
-  Integer(Int)
+  Number(Number)
   Nil
   InvalidValueException(String)
   InvalidRegisterException(String)
 }
 
+pub type NumberOperand {
+  IntegerOperand(Int)
+  FloatOperand(Float)
+}
+
 pub type Operand {
   RegisterOperand(Int)
-  IntegerOperand(Int)
+  NumberOperand(NumberOperand)
   NilOperand
   DivisionByZeroException(String)
   InvalidArgumentsException(String)
   InvalidParityException(String)
+  InvalidFractionalExponentException(String)
 }

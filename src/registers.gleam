@@ -19,7 +19,7 @@ pub fn read_register(
 pub fn update_register(
   registers: List(t.RegisterValue),
   index: Int,
-  val: Int,
+  val: t.Number,
 ) -> List(t.RegisterValue) {
   list.index_map(registers, fn(v, i) {
     case i == index - 1 {

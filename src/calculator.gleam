@@ -1,5 +1,6 @@
 import exceptions
 import gleam/erlang
+import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
@@ -30,33 +31,37 @@ pub fn tokenize(line: String) -> List(t.Token) {
         case int.parse(xs) {
           Ok(num) ->
             case num {
-              num if num > register_count ->
-                exceptions.invalid_register("x" <> xs <> " does not exist")
-              num if num < 1 ->
-                exceptions.invalid_register("x" <> xs <> " does not exist")
+              num if num > register_count -> exceptions.invalid_register(xs)
+              num if num < 1 -> exceptions.invalid_register(xs)
               num -> t.Register(num)
             }
-          Error(_) -> {
-            exceptions.invalid_register("x" <> xs <> " is not a valid register")
-          }
+          Error(_) -> exceptions.invalid_register(xs)
         }
       }
-      str_integer -> {
-        case int.parse(str_integer) {
-          Ok(integer) -> t.Integer(integer)
-          Error(_) -> t.Nil
+      str_number -> {
+        case int.parse(str_number) {
+          Ok(integer) -> t.Number(t.Integer(integer))
+          Error(_) ->
+            case float.parse(str_number) {
+              Ok(float) -> t.Number(t.Float(float))
+              Error(_) -> t.Nil
+            }
         }
       }
     }
   })
 }
 
-fn get_operand_value(
-  a: t.Operand,
+pub fn get_operand_value(
+  operand: t.Operand,
   registers: List(t.RegisterValue),
-) -> Result(Int, String) {
-  case a {
-    t.IntegerOperand(value) -> Ok(value)
+) -> Result(t.Number, String) {
+  case operand {
+    t.NumberOperand(number) ->
+      case number {
+        t.IntegerOperand(integer) -> Ok(t.Integer(integer))
+        t.FloatOperand(float) -> Ok(t.Float(float))
+      }
     t.RegisterOperand(register) -> {
       case read_register(registers, register) {
         t.Some(value) -> Ok(value)
@@ -67,7 +72,14 @@ fn get_operand_value(
   }
 }
 
-fn process_tokens(
+pub fn number_to_float(n: t.Number) -> Float {
+  case n {
+    t.Float(float) -> float
+    t.Integer(integer) -> int.to_float(integer)
+  }
+}
+
+pub fn process_tokens(
   tokens: List(t.Token),
   stack: List(t.Operand),
   registers: List(t.RegisterValue),
@@ -87,24 +99,38 @@ fn process_tokens(
             list.append(stack, [t.RegisterOperand(integer)]),
             registers,
           )
-        t.Integer(integer) -> {
-          process_tokens(
-            rest_tokens,
-            list.append(stack, [t.IntegerOperand(integer)]),
-            registers,
-          )
-        }
+        t.Number(number) ->
+          case number {
+            t.Integer(integer) -> {
+              process_tokens(
+                rest_tokens,
+                list.append(stack, [t.NumberOperand(t.IntegerOperand(integer))]),
+                registers,
+              )
+            }
+            t.Float(float) -> {
+              process_tokens(
+                rest_tokens,
+                list.append(stack, [t.NumberOperand(t.FloatOperand(float))]),
+                registers,
+              )
+            }
+          }
         t.Assign -> {
           let #(stack, operands) = utils.take_and_split(stack, 2)
 
           case operands {
-            [t.RegisterOperand(register), t.IntegerOperand(integer)] -> {
-              let registers = update_register(registers, register, integer)
-              let stack = list.append(stack, [t.IntegerOperand(integer)])
+            [t.RegisterOperand(register), t.NumberOperand(number)] -> {
+              let registers =
+                update_register(registers, register, case number {
+                  t.IntegerOperand(integer) -> t.Integer(integer)
+                  t.FloatOperand(float) -> t.Float(float)
+                })
+              let stack = list.append(stack, [t.NumberOperand(number)])
               process_tokens(rest_tokens, stack, registers)
             }
             [_, _] -> #(
-              exceptions.invalid_arguments("Expected (Register, Int, =)"),
+              exceptions.invalid_arguments("Expected (Register, Number, =)"),
               registers,
             )
             rest -> #(
@@ -121,9 +147,21 @@ fn process_tokens(
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
               let add_result = case left, right {
-                Ok(a), Ok(b) -> Ok(a + b)
+                Ok(a), Ok(b) ->
+                  case a, b {
+                    t.Integer(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.IntegerOperand(a + b)))
+                    t.Float(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a +. int.to_float(b))))
+                    t.Integer(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(int.to_float(a) +. b)))
+                    t.Float(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a +. b)))
+                  }
                 _, _ -> {
-                  Error(exceptions.invalid_arguments("Expected (Int, Int, +)"))
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, +)",
+                  ))
                 }
               }
 
@@ -131,7 +169,7 @@ fn process_tokens(
                 Ok(value) -> {
                   process_tokens(
                     rest_tokens,
-                    list.append(stack, [t.IntegerOperand(value)]),
+                    list.append(stack, [value]),
                     registers,
                   )
                 }
@@ -152,9 +190,21 @@ fn process_tokens(
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
               let sub_result = case left, right {
-                Ok(a), Ok(b) -> Ok(a - b)
+                Ok(a), Ok(b) ->
+                  case a, b {
+                    t.Integer(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.IntegerOperand(a - b)))
+                    t.Float(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a -. int.to_float(b))))
+                    t.Integer(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(int.to_float(a) -. b)))
+                    t.Float(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a -. b)))
+                  }
                 _, _ -> {
-                  Error(exceptions.invalid_arguments("Expected (Int, Int, -)"))
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, -)",
+                  ))
                 }
               }
 
@@ -162,7 +212,7 @@ fn process_tokens(
                 Ok(value) -> {
                   process_tokens(
                     rest_tokens,
-                    list.append(stack, [t.IntegerOperand(value)]),
+                    list.append(stack, [value]),
                     registers,
                   )
                 }
@@ -183,11 +233,21 @@ fn process_tokens(
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
               let mul_result = case left, right {
-                Ok(a), Ok(b) -> {
-                  Ok(a * b)
-                }
+                Ok(a), Ok(b) ->
+                  case a, b {
+                    t.Integer(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.IntegerOperand(a * b)))
+                    t.Float(a), t.Integer(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a *. int.to_float(b))))
+                    t.Integer(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(int.to_float(a) *. b)))
+                    t.Float(a), t.Float(b) ->
+                      Ok(t.NumberOperand(t.FloatOperand(a *. b)))
+                  }
                 _, _ -> {
-                  Error(exceptions.invalid_arguments("Expected (Int, Int, *)"))
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, *)",
+                  ))
                 }
               }
 
@@ -195,7 +255,7 @@ fn process_tokens(
                 Ok(value) -> {
                   process_tokens(
                     rest_tokens,
-                    list.append(stack, [t.IntegerOperand(value)]),
+                    list.append(stack, [value]),
                     registers,
                   )
                 }
@@ -216,9 +276,35 @@ fn process_tokens(
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
               let div_result = case left, right {
-                Ok(a), Ok(b) -> Ok(a / b)
+                Ok(a), Ok(b) ->
+                  case b {
+                    t.Integer(0) | t.Float(0.0) ->
+                      Error(exceptions.division_by_zero_exception())
+                    _ ->
+                      case a, b {
+                        t.Integer(a), t.Integer(b) -> {
+                          Ok(
+                            t.NumberOperand(t.FloatOperand(
+                              int.to_float(a) /. int.to_float(b),
+                            )),
+                          )
+                        }
+                        t.Float(a), t.Integer(b) ->
+                          Ok(
+                            t.NumberOperand(t.FloatOperand(a /. int.to_float(b))),
+                          )
+                        t.Integer(a), t.Float(b) ->
+                          Ok(
+                            t.NumberOperand(t.FloatOperand(int.to_float(a) /. b)),
+                          )
+                        t.Float(a), t.Float(b) ->
+                          Ok(t.NumberOperand(t.FloatOperand(a /. b)))
+                      }
+                  }
                 _, _ -> {
-                  Error(exceptions.invalid_arguments("Expected (Int, Int, /)"))
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, /)",
+                  ))
                 }
               }
 
@@ -226,7 +312,7 @@ fn process_tokens(
                 Ok(value) -> {
                   process_tokens(
                     rest_tokens,
-                    list.append(stack, [t.IntegerOperand(value)]),
+                    list.append(stack, [value]),
                     registers,
                   )
                 }
@@ -246,22 +332,34 @@ fn process_tokens(
             [a, b] -> {
               let left = get_operand_value(a, registers)
               let right = get_operand_value(b, registers)
-              let div_result = case left, right {
+              let mod_result = case left, right {
                 Ok(a), Ok(b) ->
-                  case int.modulo(a, b) {
-                    Ok(result) -> Ok(result)
-                    Error(_) -> Error(exceptions.division_by_zero_exception())
+                  case b {
+                    t.Integer(0) | t.Float(0.0) ->
+                      Error(exceptions.division_by_zero_exception())
+                    _ -> {
+                      let float_a = number_to_float(a)
+                      let float_b = number_to_float(b)
+
+                      Ok(
+                        t.NumberOperand(
+                          t.FloatOperand(utils.float_modulo(float_a, float_b)),
+                        ),
+                      )
+                    }
                   }
                 _, _ -> {
-                  Error(exceptions.invalid_arguments("Expected (Int, Int, %)"))
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, %)",
+                  ))
                 }
               }
 
-              case div_result {
+              case mod_result {
                 Ok(value) -> {
                   process_tokens(
                     rest_tokens,
-                    list.append(stack, [t.IntegerOperand(value)]),
+                    list.append(stack, [value]),
                     registers,
                   )
                 }
@@ -274,12 +372,84 @@ fn process_tokens(
             )
           }
         }
+        t.OpPow -> {
+          let #(stack, operands) = utils.take_and_split(stack, 2)
 
-        // t.OpSqrt -> {
-        // }
-        // t.OpPow -> {
-        // }
-        _ -> {
+          case operands {
+            [a, b] -> {
+              let a =
+                result.try(get_operand_value(a, registers), fn(a) {
+                  Ok(number_to_float(a))
+                })
+              let b =
+                result.try(get_operand_value(b, registers), fn(b) {
+                  Ok(number_to_float(b))
+                })
+              let mul_result = case a, b {
+                Ok(a), Ok(b) -> {
+                  case float.power(a, b) {
+                    Ok(float) -> Ok(t.NumberOperand(t.FloatOperand(float)))
+                    Error(_) ->
+                      Error(exceptions.invalid_fractional_exponent_exception())
+                  }
+                }
+                _, _ -> {
+                  Error(exceptions.invalid_arguments(
+                    "Expected (Number, Number, *)",
+                  ))
+                }
+              }
+
+              case mul_result {
+                Ok(value) -> {
+                  process_tokens(
+                    rest_tokens,
+                    list.append(stack, [value]),
+                    registers,
+                  )
+                }
+                Error(exception) -> #(exception, registers)
+              }
+            }
+            rest -> #(
+              exceptions.invalid_parity(2, list.length(rest)),
+              registers,
+            )
+          }
+        }
+        t.OpSqrt -> {
+          let #(stack, operands) = utils.take_and_split(stack, 1)
+
+          let sqrt_result = case operands {
+            [t.NumberOperand(number)] -> {
+              let float_a =
+                number_to_float(case number {
+                  t.FloatOperand(float) -> t.Float(float)
+                  t.IntegerOperand(integer) -> t.Integer(integer)
+                })
+
+              case float.square_root(float_a) {
+                Ok(value) -> Ok(t.NumberOperand(t.FloatOperand(value)))
+                Error(_) ->
+                  Error(exceptions.invalid_fractional_exponent_exception())
+              }
+            }
+            [_] -> Error(exceptions.invalid_arguments("Expected (Number, ^)"))
+            xs -> Error(exceptions.invalid_parity(1, list.length(xs)))
+          }
+
+          case sqrt_result {
+            Ok(value) -> {
+              process_tokens(
+                rest_tokens,
+                list.append(stack, [value]),
+                registers,
+              )
+            }
+            Error(exception) -> #(exception, registers)
+          }
+        }
+        _exception -> {
           let operand = case list.last(stack) {
             Ok(value) -> value
             Error(_) -> t.NilOperand
@@ -288,7 +458,7 @@ fn process_tokens(
         }
       }
     }
-    _ -> {
+    [] -> {
       let value = case list.last(stack) {
         Ok(op) -> op
         Error(_) -> t.NilOperand
@@ -299,8 +469,9 @@ fn process_tokens(
 }
 
 pub fn read() -> String {
-  let input = result.unwrap(erlang.get_line("> "), "")
-  input
+  erlang.get_line("> ")
+  |> result.unwrap("")
+  |> string.replace("\n", "")
 }
 
 pub fn eval(
@@ -310,6 +481,49 @@ pub fn eval(
   process_tokens(tokens, [], registers)
 }
 
+pub fn round_format_number(number: t.Number) -> String {
+  case number {
+    t.Integer(integer) -> {
+      int.to_string(integer)
+    }
+    t.Float(float) -> {
+      // TODO: round things like 0.30000000000000004 to 0.3
+      let is_whole = float == int.to_float(float.truncate(float))
+      case is_whole {
+        True -> int.to_string(float.truncate(float))
+        False -> float.to_string(float)
+      }
+    }
+  }
+}
+
+pub fn print_help(register_count: Int) {
+  io.println(
+    "
+Commands:
+  .help
+  .exit
+  .whatever
+
+Variable Registers:
+  Available Registers: 
+    x1, ..., x10
+  Example Assignment:
+    > x1 1 =
+
+Operations:
+  Assignment     ( Register, Number, =)
+  Addition       ( Number, Number, + )
+  Subtraction    ( Number, Number, - )
+  Multiplication ( Number, Number, * )
+  Division       ( Number, Number, / )
+  Modulo         ( Number, Number, % )
+  Power          ( Number, Number, ** )
+  Square Root    ( Number, ^ )
+",
+  )
+}
+
 pub fn format_value(
   value: t.Operand,
   registers: List(t.RegisterValue),
@@ -317,40 +531,48 @@ pub fn format_value(
   case value {
     t.RegisterOperand(register) -> {
       case read_register(registers, register) {
-        t.Some(integer) -> {
-          int.to_string(integer)
-        }
+        t.Some(number) -> round_format_number(number)
         t.None -> "nil"
       }
     }
-    t.IntegerOperand(integer) -> {
-      int.to_string(integer)
+    t.NumberOperand(number) -> {
+      round_format_number(case number {
+        t.IntegerOperand(integer) -> t.Integer(integer)
+        t.FloatOperand(float) -> t.Float(float)
+      })
     }
     t.NilOperand -> "nil"
     t.InvalidArgumentsException(e) -> "InvalidArgumentsException: " <> e
     t.InvalidParityException(e) -> "InvalidParityException: " <> e
     t.DivisionByZeroException(e) -> "DivisionByZeroException: " <> e
+    t.InvalidFractionalExponentException(e) ->
+      "InvalidFractionalExponentException: " <> e
   }
 }
 
 pub fn repl(registers: List(t.RegisterValue)) {
   let line = read()
   let tokens = tokenize(line)
-
   let #(value, registers) = eval(tokens, registers)
-
   let output = format_value(value, registers)
 
-  io.println(output)
-
   case line {
-    ".exit\n" -> Nil
-    _ -> repl(registers)
+    ".exit" | ".e" -> Nil
+    ".help" | ".h" -> {
+      print_help(list.length(registers))
+      repl(registers)
+    }
+    "" -> repl(registers)
+    _ -> {
+      io.println(output)
+      repl(registers)
+    }
   }
 }
 
 pub fn main() {
-  io.println("Reverse Polish Notation Calculator v0.x.x")
+  io.println("Welcome to Reverse Polish Notation Calculator v1.0.0")
+  io.println("Type \".help\" for more information")
 
   let registers = create_registers(register_count)
   repl(registers)

@@ -1,8 +1,8 @@
 import gleam/int
 import types as t
 
-pub fn invalid_register(reason: String) {
-  t.InvalidRegisterException(reason)
+pub fn invalid_register(register: String) {
+  t.InvalidRegisterException("Register x" <> register <> " does not exist")
 }
 
 pub fn invalid_value(reason: String) {
@@ -24,4 +24,10 @@ pub fn invalid_arguments(info: String) {
 
 pub fn division_by_zero_exception() {
   t.DivisionByZeroException("Cannot divide by 0")
+}
+
+pub fn invalid_fractional_exponent_exception() {
+  t.InvalidFractionalExponentException(
+    "Raising a negative number to a fractional power results in a complex number",
+  )
 }

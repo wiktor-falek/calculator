@@ -1,5 +1,6 @@
-import gleam/list
+import gleam/float
 import gleam/int
+import gleam/list
 
 /// Takes up to the given number of elements from the end of the list, and moves them to a new list.
 /// 
@@ -14,4 +15,14 @@ import gleam/int
 /// ```
 pub fn take_and_split(a, amount) {
   list.split(a, int.max(0, list.length(a) - amount))
+}
+
+pub fn float_modulo(a: Float, b: Float) -> Float {
+  // TODO:
+  // > 1000000000000001 2 %
+  // 1
+  // > 10000000000000001 2 %
+  // 0
+
+  a -. { b *. float.floor(a /. b) }
 }
