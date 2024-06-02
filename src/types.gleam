@@ -17,11 +17,9 @@ pub type Token {
   OpPow
   OpMod
   OpSqrt
-  Register(Int)
+  Variable(String)
   Number(Number)
   Nil
-  InvalidValueException(String)
-  InvalidRegisterException(String)
 }
 
 pub type NumberOperand {
@@ -30,7 +28,7 @@ pub type NumberOperand {
 }
 
 pub type Operand {
-  RegisterOperand(Int)
+  VariableOperand(String)
   NumberOperand(NumberOperand)
   NilOperand
   DivisionByZeroException(String)

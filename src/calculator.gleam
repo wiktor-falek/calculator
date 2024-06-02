@@ -1,4 +1,5 @@
 import exceptions
+import gleam/dict
 import gleam/erlang
 import gleam/float
 import gleam/int
@@ -6,11 +7,9 @@ import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
-import registers.{create_registers, read_register, update_register}
 import types as t
 import utils
-
-const register_count = 10
+import vars.{create_vars, read_var, update_vars}
 
 pub fn tokenize(line: String) -> List(t.Token) {
   line
@@ -27,24 +26,15 @@ pub fn tokenize(line: String) -> List(t.Token) {
       "%" -> t.OpMod
       "^" -> t.OpSqrt
       "**" -> t.OpPow
-      "x" <> xs -> {
-        case int.parse(xs) {
-          Ok(num) ->
-            case num {
-              num if num > register_count -> exceptions.invalid_register(xs)
-              num if num < 1 -> exceptions.invalid_register(xs)
-              num -> t.Register(num)
-            }
-          Error(_) -> exceptions.invalid_register(xs)
-        }
-      }
-      str_number -> {
-        case int.parse(str_number) {
+      var_or_number -> {
+        case int.parse(var_or_number) {
           Ok(integer) -> t.Number(t.Integer(integer))
           Error(_) ->
-            case float.parse(str_number) {
+            case float.parse(var_or_number) {
               Ok(float) -> t.Number(t.Float(float))
-              Error(_) -> t.Nil
+              Error(_) -> {
+                t.Variable(var_or_number)
+              }
             }
         }
       }
@@ -54,21 +44,19 @@ pub fn tokenize(line: String) -> List(t.Token) {
 
 pub fn get_operand_value(
   operand: t.Operand,
-  registers: List(t.RegisterValue),
-) -> Result(t.Number, String) {
+  vars: dict.Dict(String, t.Number),
+) -> Result(t.Number, Nil) {
   case operand {
     t.NumberOperand(number) ->
       case number {
         t.IntegerOperand(integer) -> Ok(t.Integer(integer))
         t.FloatOperand(float) -> Ok(t.Float(float))
       }
-    t.RegisterOperand(register) -> {
-      case read_register(registers, register) {
-        t.Some(value) -> Ok(value)
-        _ -> Error("")
-      }
+    t.VariableOperand(var) -> {
+      vars
+      |> read_var(var)
     }
-    _ -> Error("")
+    _ -> Error(Nil)
   }
 }
 
@@ -82,22 +70,25 @@ pub fn number_to_float(n: t.Number) -> Float {
 pub fn process_tokens(
   tokens: List(t.Token),
   stack: List(t.Operand),
-  registers: List(t.RegisterValue),
-) -> #(t.Operand, List(t.RegisterValue)) {
+  vars: dict.Dict(String, t.Number),
+) -> #(t.Operand, dict.Dict(String, t.Number)) {
   case tokens {
+    [] -> {
+      let value = case list.last(stack) {
+        Ok(op) -> op
+        Error(_) -> t.NilOperand
+      }
+      #(value, vars)
+    }
     [token, ..rest_tokens] -> {
       case token {
         t.Nil ->
+          process_tokens(rest_tokens, list.append(stack, [t.NilOperand]), vars)
+        t.Variable(var) ->
           process_tokens(
             rest_tokens,
-            list.append(stack, [t.NilOperand]),
-            registers,
-          )
-        t.Register(integer) ->
-          process_tokens(
-            rest_tokens,
-            list.append(stack, [t.RegisterOperand(integer)]),
-            registers,
+            list.append(stack, [t.VariableOperand(var)]),
+            vars,
           )
         t.Number(number) ->
           case number {
@@ -105,14 +96,14 @@ pub fn process_tokens(
               process_tokens(
                 rest_tokens,
                 list.append(stack, [t.NumberOperand(t.IntegerOperand(integer))]),
-                registers,
+                vars,
               )
             }
             t.Float(float) -> {
               process_tokens(
                 rest_tokens,
                 list.append(stack, [t.NumberOperand(t.FloatOperand(float))]),
-                registers,
+                vars,
               )
             }
           }
@@ -120,23 +111,20 @@ pub fn process_tokens(
           let #(stack, operands) = utils.take_and_split(stack, 2)
 
           case operands {
-            [t.RegisterOperand(register), t.NumberOperand(number)] -> {
-              let registers =
-                update_register(registers, register, case number {
+            [t.VariableOperand(var), t.NumberOperand(number)] -> {
+              let vars =
+                update_vars(vars, var, case number {
                   t.IntegerOperand(integer) -> t.Integer(integer)
                   t.FloatOperand(float) -> t.Float(float)
                 })
               let stack = list.append(stack, [t.NumberOperand(number)])
-              process_tokens(rest_tokens, stack, registers)
+              process_tokens(rest_tokens, stack, vars)
             }
             [_, _] -> #(
-              exceptions.invalid_arguments("Expected (Register, Number, =)"),
-              registers,
+              exceptions.invalid_arguments("Expected (Variable, Number, =)"),
+              vars,
             )
-            rest -> #(
-              exceptions.invalid_parity(2, list.length(rest)),
-              registers,
-            )
+            rest -> #(exceptions.invalid_parity(2, list.length(rest)), vars)
           }
         }
         t.OpAdd -> {
@@ -144,8 +132,8 @@ pub fn process_tokens(
 
           case operands {
             [a, b] -> {
-              let left = get_operand_value(a, registers)
-              let right = get_operand_value(b, registers)
+              let left = get_operand_value(a, vars)
+              let right = get_operand_value(b, vars)
               let add_result = case left, right {
                 Ok(a), Ok(b) ->
                   case a, b {
@@ -167,19 +155,12 @@ pub fn process_tokens(
 
               case add_result {
                 Ok(value) -> {
-                  process_tokens(
-                    rest_tokens,
-                    list.append(stack, [value]),
-                    registers,
-                  )
+                  process_tokens(rest_tokens, list.append(stack, [value]), vars)
                 }
-                Error(exception) -> #(exception, registers)
+                Error(exception) -> #(exception, vars)
               }
             }
-            rest -> #(
-              exceptions.invalid_parity(2, list.length(rest)),
-              registers,
-            )
+            rest -> #(exceptions.invalid_parity(2, list.length(rest)), vars)
           }
         }
         t.OpSub -> {
@@ -187,8 +168,8 @@ pub fn process_tokens(
 
           case operands {
             [a, b] -> {
-              let left = get_operand_value(a, registers)
-              let right = get_operand_value(b, registers)
+              let left = get_operand_value(a, vars)
+              let right = get_operand_value(b, vars)
               let sub_result = case left, right {
                 Ok(a), Ok(b) ->
                   case a, b {
@@ -210,19 +191,12 @@ pub fn process_tokens(
 
               case sub_result {
                 Ok(value) -> {
-                  process_tokens(
-                    rest_tokens,
-                    list.append(stack, [value]),
-                    registers,
-                  )
+                  process_tokens(rest_tokens, list.append(stack, [value]), vars)
                 }
-                Error(exception) -> #(exception, registers)
+                Error(exception) -> #(exception, vars)
               }
             }
-            rest -> #(
-              exceptions.invalid_parity(2, list.length(rest)),
-              registers,
-            )
+            rest -> #(exceptions.invalid_parity(2, list.length(rest)), vars)
           }
         }
         t.OpMul -> {
@@ -230,8 +204,8 @@ pub fn process_tokens(
 
           case operands {
             [a, b] -> {
-              let left = get_operand_value(a, registers)
-              let right = get_operand_value(b, registers)
+              let left = get_operand_value(a, vars)
+              let right = get_operand_value(b, vars)
               let mul_result = case left, right {
                 Ok(a), Ok(b) ->
                   case a, b {
@@ -253,19 +227,12 @@ pub fn process_tokens(
 
               case mul_result {
                 Ok(value) -> {
-                  process_tokens(
-                    rest_tokens,
-                    list.append(stack, [value]),
-                    registers,
-                  )
+                  process_tokens(rest_tokens, list.append(stack, [value]), vars)
                 }
-                Error(exception) -> #(exception, registers)
+                Error(exception) -> #(exception, vars)
               }
             }
-            rest -> #(
-              exceptions.invalid_parity(2, list.length(rest)),
-              registers,
-            )
+            rest -> #(exceptions.invalid_parity(2, list.length(rest)), vars)
           }
         }
         t.OpDiv -> {
@@ -273,8 +240,8 @@ pub fn process_tokens(
 
           case operands {
             [a, b] -> {
-              let left = get_operand_value(a, registers)
-              let right = get_operand_value(b, registers)
+              let left = get_operand_value(a, vars)
+              let right = get_operand_value(b, vars)
               let div_result = case left, right {
                 Ok(a), Ok(b) ->
                   case b {
@@ -310,19 +277,12 @@ pub fn process_tokens(
 
               case div_result {
                 Ok(value) -> {
-                  process_tokens(
-                    rest_tokens,
-                    list.append(stack, [value]),
-                    registers,
-                  )
+                  process_tokens(rest_tokens, list.append(stack, [value]), vars)
                 }
-                Error(exception) -> #(exception, registers)
+                Error(exception) -> #(exception, vars)
               }
             }
-            rest -> #(
-              exceptions.invalid_parity(2, list.length(rest)),
-              registers,
-            )
+            rest -> #(exceptions.invalid_parity(2, list.length(rest)), vars)
           }
         }
         t.OpMod -> {
@@ -330,8 +290,8 @@ pub fn process_tokens(
 
           case operands {
             [a, b] -> {
-              let left = get_operand_value(a, registers)
-              let right = get_operand_value(b, registers)
+              let left = get_operand_value(a, vars)
+              let right = get_operand_value(b, vars)
               let mod_result = case left, right {
                 Ok(a), Ok(b) ->
                   case b {
@@ -357,19 +317,12 @@ pub fn process_tokens(
 
               case mod_result {
                 Ok(value) -> {
-                  process_tokens(
-                    rest_tokens,
-                    list.append(stack, [value]),
-                    registers,
-                  )
+                  process_tokens(rest_tokens, list.append(stack, [value]), vars)
                 }
-                Error(exception) -> #(exception, registers)
+                Error(exception) -> #(exception, vars)
               }
             }
-            rest -> #(
-              exceptions.invalid_parity(2, list.length(rest)),
-              registers,
-            )
+            rest -> #(exceptions.invalid_parity(2, list.length(rest)), vars)
           }
         }
         t.OpPow -> {
@@ -378,11 +331,11 @@ pub fn process_tokens(
           case operands {
             [a, b] -> {
               let a =
-                result.try(get_operand_value(a, registers), fn(a) {
+                result.try(get_operand_value(a, vars), fn(a) {
                   Ok(number_to_float(a))
                 })
               let b =
-                result.try(get_operand_value(b, registers), fn(b) {
+                result.try(get_operand_value(b, vars), fn(b) {
                   Ok(number_to_float(b))
                 })
               let mul_result = case a, b {
@@ -402,19 +355,12 @@ pub fn process_tokens(
 
               case mul_result {
                 Ok(value) -> {
-                  process_tokens(
-                    rest_tokens,
-                    list.append(stack, [value]),
-                    registers,
-                  )
+                  process_tokens(rest_tokens, list.append(stack, [value]), vars)
                 }
-                Error(exception) -> #(exception, registers)
+                Error(exception) -> #(exception, vars)
               }
             }
-            rest -> #(
-              exceptions.invalid_parity(2, list.length(rest)),
-              registers,
-            )
+            rest -> #(exceptions.invalid_parity(2, list.length(rest)), vars)
           }
         }
         t.OpSqrt -> {
@@ -440,31 +386,14 @@ pub fn process_tokens(
 
           case sqrt_result {
             Ok(value) -> {
-              process_tokens(
-                rest_tokens,
-                list.append(stack, [value]),
-                registers,
-              )
+              process_tokens(rest_tokens, list.append(stack, [value]), vars)
             }
-            Error(exception) -> #(exception, registers)
+            Error(exception) -> #(exception, vars)
           }
-        }
-        _exception -> {
-          let operand = case list.last(stack) {
-            Ok(value) -> value
-            Error(_) -> t.NilOperand
-          }
-          #(operand, registers)
         }
       }
     }
-    [] -> {
-      let value = case list.last(stack) {
-        Ok(op) -> op
-        Error(_) -> t.NilOperand
-      }
-      #(value, registers)
-    }
+    // 
   }
 }
 
@@ -476,9 +405,9 @@ pub fn read() -> String {
 
 pub fn eval(
   tokens: List(t.Token),
-  registers: List(t.RegisterValue),
-) -> #(t.Operand, List(t.RegisterValue)) {
-  process_tokens(tokens, [], registers)
+  vars: dict.Dict(String, t.Number),
+) -> #(t.Operand, dict.Dict(String, t.Number)) {
+  process_tokens(tokens, [], vars)
 }
 
 pub fn round_format_number(number: t.Number) -> String {
@@ -497,42 +426,35 @@ pub fn round_format_number(number: t.Number) -> String {
   }
 }
 
-pub fn print_help(register_count: Int) {
+pub fn print_help() {
   io.println(
     "
 Commands:
   .help
   .exit
-  .whatever
-
-Variable Registers:
-  Available Registers: 
-    x1, ..., x10
-  Example Assignment:
-    > x1 1 =
 
 Operations:
-  Assignment     ( Register, Number, =)
-  Addition       ( Number, Number, + )
-  Subtraction    ( Number, Number, - )
-  Multiplication ( Number, Number, * )
-  Division       ( Number, Number, / )
-  Modulo         ( Number, Number, % )
-  Power          ( Number, Number, ** )
-  Square Root    ( Number, ^ )
+  Assignment     ( Var, Num, =)
+  Addition       ( Num, Num, + )
+  Subtraction    ( Num, Num, - )
+  Multiplication ( Num, Num, * )
+  Division       ( Num, Num, / )
+  Modulo         ( Num, Num, % )
+  Power          ( Num, Num, ** )
+  Square Root    ( Num, ^ )
 ",
   )
 }
 
 pub fn format_value(
   value: t.Operand,
-  registers: List(t.RegisterValue),
+  vars: dict.Dict(String, t.Number),
 ) -> String {
   case value {
-    t.RegisterOperand(register) -> {
-      case read_register(registers, register) {
-        t.Some(number) -> round_format_number(number)
-        t.None -> "nil"
+    t.VariableOperand(var) -> {
+      case read_var(vars, var) {
+        Ok(number) -> round_format_number(number)
+        Error(_) -> "nil"
       }
     }
     t.NumberOperand(number) -> {
@@ -550,22 +472,22 @@ pub fn format_value(
   }
 }
 
-pub fn repl(registers: List(t.RegisterValue)) {
+pub fn repl(vars: dict.Dict(String, t.Number)) {
   let line = read()
   let tokens = tokenize(line)
-  let #(value, registers) = eval(tokens, registers)
-  let output = format_value(value, registers)
+  let #(value, vars) = eval(tokens, vars)
+  let output = format_value(value, vars)
 
   case line {
     ".exit" | ".e" -> Nil
     ".help" | ".h" -> {
-      print_help(list.length(registers))
-      repl(registers)
+      print_help()
+      repl(vars)
     }
-    "" -> repl(registers)
+    "" -> repl(vars)
     _ -> {
       io.println(output)
-      repl(registers)
+      repl(vars)
     }
   }
 }
@@ -574,6 +496,6 @@ pub fn main() {
   io.println("Welcome to Reverse Polish Notation Calculator v1.0.0")
   io.println("Type \".help\" for more information")
 
-  let registers = create_registers(register_count)
-  repl(registers)
+  let vars = create_vars()
+  repl(vars)
 }

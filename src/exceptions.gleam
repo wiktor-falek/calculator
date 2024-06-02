@@ -1,14 +1,6 @@
 import gleam/int
 import types as t
 
-pub fn invalid_register(register: String) {
-  t.InvalidRegisterException("Register x" <> register <> " does not exist")
-}
-
-pub fn invalid_value(reason: String) {
-  t.InvalidValueException(reason)
-}
-
 pub fn invalid_parity(expected: Int, found: Int) {
   t.InvalidParityException(
     "Expected "
