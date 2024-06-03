@@ -122,8 +122,8 @@ pub fn process_tokens(
                   let stack = list.append(stack, [t.NumberOperand(number)])
                   process_tokens(rest_tokens, stack, vars)
                 }
-                t.VariableOperand(var) -> {
-                  case vars.read_var(vars, var) {
+                t.VariableOperand(existing_var) -> {
+                  case vars.read_var(vars, existing_var) {
                     Ok(number) -> {
                       let vars = update_vars(vars, var, number)
                       let stack =
