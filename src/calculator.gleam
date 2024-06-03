@@ -111,14 +111,45 @@ pub fn process_tokens(
           let #(stack, operands) = utils.take_and_split(stack, 2)
 
           case operands {
-            [t.VariableOperand(var), t.NumberOperand(number)] -> {
-              let vars =
-                update_vars(vars, var, case number {
-                  t.IntegerOperand(integer) -> t.Integer(integer)
-                  t.FloatOperand(float) -> t.Float(float)
-                })
-              let stack = list.append(stack, [t.NumberOperand(number)])
-              process_tokens(rest_tokens, stack, vars)
+            [t.VariableOperand(var), b] -> {
+              case b {
+                t.NumberOperand(number) -> {
+                  let vars =
+                    update_vars(vars, var, case number {
+                      t.IntegerOperand(integer) -> t.Integer(integer)
+                      t.FloatOperand(float) -> t.Float(float)
+                    })
+                  let stack = list.append(stack, [t.NumberOperand(number)])
+                  process_tokens(rest_tokens, stack, vars)
+                }
+                t.VariableOperand(var) -> {
+                  case vars.read_var(vars, var) {
+                    Ok(number) -> {
+                      let vars = update_vars(vars, var, number)
+                      let stack =
+                        list.append(stack, [
+                          case number {
+                            t.Float(float) ->
+                              t.NumberOperand(t.FloatOperand(float))
+                            t.Integer(integer) ->
+                              t.NumberOperand(t.IntegerOperand(integer))
+                          },
+                        ])
+                      process_tokens(rest_tokens, stack, vars)
+                    }
+                    Error(_) -> #(
+                      exceptions.invalid_arguments(
+                        "Expected (Variable, Number, =)",
+                      ),
+                      vars,
+                    )
+                  }
+                }
+                _ -> #(
+                  exceptions.invalid_arguments("Expected (Variable, Number, =)"),
+                  vars,
+                )
+              }
             }
             [_, _] -> #(
               exceptions.invalid_arguments("Expected (Variable, Number, =)"),
