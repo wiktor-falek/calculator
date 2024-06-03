@@ -462,6 +462,7 @@ pub fn print_help() {
     "
 Commands:
   .help
+  .clear
   .exit
 
 Operations:
@@ -513,6 +514,10 @@ pub fn repl(vars: dict.Dict(String, t.Number)) {
     ".exit" | ".e" -> Nil
     ".help" | ".h" -> {
       print_help()
+      repl(vars)
+    }
+    ".clear" | ".c" -> {
+      io.println("TODO")
       repl(vars)
     }
     "" -> repl(vars)
